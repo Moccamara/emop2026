@@ -66,7 +66,7 @@ if not st.session_state.auth_ok:
 # =========================================================
 # LOAD SE POLYGONS
 # =========================================================
-SE_URL = "https://raw.githubusercontent.com/Moccamara/web_mapping/master/data/SE.geojson"
+SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/data/SE.geojson"
 
 @st.cache_data(show_spinner=False)
 def load_se_data(url):
@@ -91,28 +91,6 @@ try:
 except Exception:
     st.error("❌ Unable to load SE.geojson from GitHub")
     st.stop()
-
-# =========================================================
-# LOAD CONCESSION POINTS
-# =========================================================
-POINTS_URL = "https://raw.githubusercontent.com/Moccamara/web_mapping/master/data/concession.csv"
-
-@st.cache_data(show_spinner=False)
-def load_points_from_github(url):
-    try:
-        df = pd.read_csv(url)
-        if not {"LAT", "LON"}.issubset(df.columns):
-            return None
-        df["LAT"] = pd.to_numeric(df["LAT"], errors="coerce")
-        df["LON"] = pd.to_numeric(df["LON"], errors="coerce")
-        df = df.dropna(subset=["LAT","LON"])
-        return gpd.GeoDataFrame(
-            df,
-            geometry=gpd.points_from_xy(df["LON"], df["LAT"]),
-            crs="EPSG:4326"
-        )
-    except:
-        return None
 
 # =========================================================
 # POINTS SOURCE LOGIC
@@ -384,6 +362,7 @@ st.markdown("""
 **Geospatial Enterprise Web Mapping** Developed with Streamlit, Folium & GeoPandas  
 **Dr. Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
 
 
