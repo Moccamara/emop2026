@@ -135,8 +135,11 @@ def safe_sjoin(points, polygons, how="inner", predicate="intersects"):
 # =========================================================
 with st.sidebar:
     LOGO_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop/logo/logo_wgv.png"
-st.image(LOGO_URL, width=200)
-    st.markdown(f"**Logged in as:** {st.session_state.username} ({st.session_state.user_role})")
+    st.image(LOGO_URL, width=200)
+    st.markdown(
+        f"**Logged in as:** {st.session_state.username} "
+        f"({st.session_state.user_role})"
+    )
     if st.button("Logout"):
         logout()
 
@@ -378,6 +381,7 @@ st.markdown("""
 **Geospatial Enterprise Web Mapping** Developed with Streamlit, Folium & GeoPandas  
 **Dr. Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
 
 
