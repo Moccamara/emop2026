@@ -351,32 +351,6 @@ with col_chart:
             st.pyplot(fig)
             
 # =========================================================
-# CSV UPLOAD (ADMIN ONLY)
-# =========================================================
-if st.session_state.user_role == "Admin":
-    st.sidebar.markdown("### 📥 Upload CSV Points (Admin)")
-    csv_file = st.sidebar.file_uploader("Upload CSV", type=["csv"], key="admin_csv")
-    if csv_file is not None:
-        try:
-            df_csv = pd.read_csv(csv_file)
-            required_cols = {"LAT", "LON"}
-            if not required_cols.issubset(df_csv.columns):
-                st.sidebar.error("CSV must contain LAT and LON columns")
-            else:
-                df_csv["LAT"] = pd.to_numeric(df_csv["LAT"], errors="coerce")
-                df_csv["LON"] = pd.to_numeric(df_csv["LON"], errors="coerce")
-                df_csv = df_csv.dropna(subset=["LAT", "LON"])
-                points_gdf = gpd.GeoDataFrame(
-                    df_csv,
-                    geometry=gpd.points_from_xy(df_csv["LON"], df_csv["LAT"]),
-                    crs="EPSG:4326"
-                )
-                st.session_state.points_gdf = points_gdf
-                st.sidebar.success(f"✅ {len(points_gdf)} points loaded")
-        except Exception as e:
-            st.sidebar.error("Failed to read CSV file")
-
-# =========================================================
 # FOOTER
 # =========================================================
 st.markdown("""
@@ -384,5 +358,6 @@ st.markdown("""
 **Geospatial Enterprise Web Mapping** Developed with Streamlit, Folium & GeoPandas  
 **Dr. Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
 
