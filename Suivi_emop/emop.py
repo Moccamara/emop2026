@@ -205,7 +205,10 @@ folium.GeoJson(
 fg_idse.add_to(m)
 
 # Concession Points
-points_to_plot = pts_inside_map if (st.session_state.user_role=="Admin" and pts_inside_map is not None) else points_gdf
+if st.session_state.user_role == "Admin" and pts_inside_map is not None:
+    points_to_plot = pts_inside_map
+else:
+    points_to_plot = points_gdf
 fg_points = folium.FeatureGroup(name="Concession Points", show=True)
 if points_to_plot is not None:
     points_to_plot = points_to_plot.to_crs(gdf_idse.crs)
@@ -381,6 +384,7 @@ st.markdown("""
 **Geospatial Enterprise Web Mapping** Developed with Streamlit, Folium & GeoPandas  
 **Dr. Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
 
 
