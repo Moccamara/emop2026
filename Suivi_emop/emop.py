@@ -35,9 +35,11 @@ if "auth_ok" not in st.session_state:
 # LOGOUT
 # =========================================================
 def logout():
-    for k in ["auth_ok", "username", "user_role", "points_gdf", "query_result"]:
-        st.session_state[k] = None
     st.session_state.auth_ok = False
+    st.session_state.username = None
+    st.session_state.user_role = None
+    st.session_state.points_gdf = None
+    st.session_state.query_result = None
     st.rerun()
 
 # =========================================================
@@ -47,6 +49,7 @@ if not st.session_state.auth_ok:
     st.sidebar.header("🔐 Login")
     username = st.sidebar.selectbox("User", list(USERS.keys()))
     password = st.sidebar.text_input("Password", type="password")
+
     if st.sidebar.button("Login"):
         if password == USERS[username]["password"]:
             st.session_state.auth_ok = True
@@ -58,7 +61,7 @@ if not st.session_state.auth_ok:
     st.stop()
 
 # =========================================================
-# SAFE POINTS INIT (CRITICAL FIX)
+# SAFE POINTS INIT
 # =========================================================
 points_gdf = st.session_state.points_gdf
 
@@ -70,9 +73,19 @@ SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop
 @st.cache_data(show_spinner=False)
 def load_se_data(url):
     gdf = gpd.read_file(url)
-    gdf = gdf.set_crs(epsg=4326) if gdf.crs is None else gdf.to_crs(4326)
+
+    if gdf.crs is None:
+        gdf = gdf.set_crs(epsg=4326)
+    else:
+        gdf = gdf.to_crs(epsg=4326)
+
     gdf.columns = gdf.columns.str.lower().str.strip()
-    gdf = gdf.rename(columns={"lregion": "region", "lcercle": "cercle", "lcommune": "commune"})
+    gdf = gdf.rename(columns={
+        "lregion": "region",
+        "lcercle": "cercle",
+        "lcommune": "commune"
+    })
+
     gdf = gdf[gdf.is_valid & ~gdf.is_empty]
 
     for col in ["region", "cercle", "commune", "idse_new"]:
@@ -87,8 +100,8 @@ def load_se_data(url):
 
 try:
     gdf = load_se_data(SE_URL)
-except Exception:
-    st.error("❌ Unable to load SE.geojson from GitHub")
+except Exception as e:
+    st.error(f"❌ Unable to load SE.geojson: {e}")
     st.stop()
 
 # =========================================================
@@ -117,13 +130,18 @@ gdf_commune = gdf_c[gdf_c["commune"] == commune]
 idse_list = ["No filter"] + sorted(gdf_commune["idse_new"].dropna().unique())
 idse_selected = st.sidebar.selectbox("Unit_Geo", idse_list)
 
-gdf_idse = gdf_commune if idse_selected == "No filter" else gdf_commune[gdf_commune["idse_new"] == idse_selected]
+gdf_idse = (
+    gdf_commune if idse_selected == "No filter"
+    else gdf_commune[gdf_commune["idse_new"] == idse_selected]
+)
 
 # =========================================================
 # SPATIAL QUERY
 # =========================================================
 st.sidebar.markdown("### 🧭 Spatial Query")
-query_type = st.sidebar.selectbox("Select query type", ["Intersects", "Within", "Contains"])
+query_type = st.sidebar.selectbox(
+    "Select query type", ["Intersects", "Within", "Contains"]
+)
 
 if st.sidebar.button("Run Query"):
     if points_gdf is not None and not gdf_idse.empty:
@@ -131,6 +149,7 @@ if st.sidebar.button("Run Query"):
         st.session_state.query_result = gpd.sjoin(
             pts, gdf_idse, predicate=query_type.lower(), how="inner"
         )
+
         if st.session_state.query_result.empty:
             st.sidebar.warning("No points match the query.")
         else:
@@ -139,7 +158,7 @@ if st.sidebar.button("Run Query"):
         st.sidebar.error("No point data available.")
 
 # =========================================================
-# CSV UPLOAD (ADMIN ONLY) — FIXED ENCODING
+# CSV UPLOAD (ADMIN ONLY)
 # =========================================================
 if st.session_state.user_role == "Admin":
     st.sidebar.markdown("### 📥 Upload CSV Points (Admin)")
@@ -162,40 +181,59 @@ if st.session_state.user_role == "Admin":
 
                 points_gdf = gpd.GeoDataFrame(
                     df,
-                    geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
-                    crs="EPSG:4326"
+                    geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"])
                 )
+
+                # CRS FIX (Folium needs WGS84)
+                points_gdf = points_gdf.set_crs(epsg=4326, allow_override=True)
 
                 st.session_state.points_gdf = points_gdf
                 st.sidebar.success(f"✅ {len(points_gdf)} points loaded")
 
         except Exception as e:
             st.sidebar.error(f"Failed to read CSV: {e}")
+
 # =========================================================
 # MAP
 # =========================================================
 minx, miny, maxx, maxy = gdf_idse.total_bounds
-m = folium.Map(location=[(miny + maxy) / 2, (minx + maxx) / 2], zoom_start=14)
+m = folium.Map(
+    location=[(miny + maxy) / 2, (minx + maxx) / 2],
+    zoom_start=14
+)
 
 folium.TileLayer("OpenStreetMap").add_to(m)
 folium.TileLayer(
     tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     name="Satellite",
-    attr="Esri",
+    attr="Esri"
 ).add_to(m)
 
 folium.GeoJson(
     gdf_idse,
     name="IDSE",
-    style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.15},
-    tooltip=folium.GeoJsonTooltip(fields=["idse_new", "pop_se", "pop_se_ct"]),
+    style_function=lambda x: {
+        "color": "blue",
+        "weight": 2,
+        "fillOpacity": 0.15
+    },
+    tooltip=folium.GeoJsonTooltip(
+        fields=["idse_new", "pop_se", "pop_se_ct"]
+    ),
 ).add_to(m)
 
-display_points = st.session_state.query_result or points_gdf
+display_points = (
+    st.session_state.query_result
+    if st.session_state.query_result is not None
+    else points_gdf
+)
+
 if display_points is not None and not display_points.empty:
-    for _, r in display_points.iterrows():
+    pts_wgs84 = display_points.to_crs(epsg=4326)
+
+    for _, r in pts_wgs84.iterrows():
         folium.CircleMarker(
-            [r.geometry.y, r.geometry.x],
+            location=[r.geometry.y, r.geometry.x],
             radius=3,
             color="red",
             fill=True,
@@ -223,10 +261,17 @@ with col_chart:
             var_name="Type",
             value_name="Population",
         )
+
         st.altair_chart(
-            alt.Chart(df_long).mark_bar().encode(
-                x="idse_new:N", y="Population:Q", color="Type:N"
-            ).properties(height=150),
+            alt.Chart(df_long)
+            .mark_bar()
+            .encode(
+                x="idse_new:N",
+                y="Population:Q",
+                color="Type:N",
+                tooltip=["idse_new", "Type", "Population"]
+            )
+            .properties(height=150),
             use_container_width=True,
         )
 
@@ -239,4 +284,3 @@ st.markdown("""
 Developed with Streamlit, Folium & GeoPandas  
 **Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
-
