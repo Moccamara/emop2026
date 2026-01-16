@@ -4,7 +4,6 @@ import folium
 from streamlit_folium import st_folium
 from folium.plugins import MeasureControl, Draw
 import pandas as pd
-import altair as alt
 
 # =========================================================
 # APP CONFIG
@@ -44,7 +43,6 @@ if not st.session_state.auth_ok:
     st.sidebar.header("🔐 Login")
     username = st.sidebar.selectbox("User", list(USERS.keys()))
     password = st.sidebar.text_input("Password", type="password")
-
     if st.sidebar.button("Login"):
         if password == USERS[username]["password"]:
             st.session_state.auth_ok = True
@@ -72,7 +70,7 @@ def load_se_data(url):
     # Normalize column names
     gdf.columns = [c.lower().strip() for c in gdf.columns]
 
-    # Renaming for internal processing
+    # Internal renaming
     gdf = gdf.rename(columns={
         "lregion": "region",
         "lcerde": "cercle",
@@ -80,7 +78,7 @@ def load_se_data(url):
         "num_se": "se_id"
     })
 
-    # 🔴 Remove duplicate columns
+    # Remove duplicates
     gdf = gdf.loc[:, ~gdf.columns.duplicated()]
 
     # Safety guarantees
@@ -117,24 +115,24 @@ def unique_clean(series):
     return sorted(series.dropna().astype(str).str.strip().unique())
 
 # =========================================================
-# ATTRIBUTE FILTERS (use original GeoJSON labels)
+# ATTRIBUTE FILTERS (use renamed columns)
 # =========================================================
 st.sidebar.markdown("### 🗂️ Attribute Query")
 
-# REGION (lregion)
-regions = unique_clean(gdf["lregion"])
+# REGION
+regions = unique_clean(gdf["region"])
 region = st.sidebar.selectbox("Region", regions)
-gdf_r = gdf[gdf["lregion"] == region]
+gdf_r = gdf[gdf["region"] == region]
 
-# CERCLE (lcerde)
-cercles = unique_clean(gdf_r["lcerde"])
+# CERCLE
+cercles = unique_clean(gdf_r["cercle"])
 cercle = st.sidebar.selectbox("Cercle", cercles)
-gdf_c = gdf_r[gdf_r["lcerde"] == cercle]
+gdf_c = gdf_r[gdf_r["cercle"] == cercle]
 
-# COMMUNE (lcommune)
-communes = unique_clean(gdf_c["lcommune"])
+# COMMUNE
+communes = unique_clean(gdf_c["commune"])
 commune = st.sidebar.selectbox("Commune", communes)
-gdf_commune = gdf_c[gdf_c["lcommune"] == commune]
+gdf_commune = gdf_c[gdf_c["commune"] == commune]
 
 # SE (num_se)
 se_list = ["No filter"] + unique_clean(gdf_commune["se_id"])
