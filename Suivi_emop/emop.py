@@ -30,7 +30,7 @@ if "auth_ok" not in st.session_state:
     st.session_state.query_result = None
 
 # =========================================================
-# LOGOUT
+# LOGOUT FUNCTION
 # =========================================================
 def logout():
     st.session_state.clear()
@@ -122,7 +122,7 @@ def unique_clean(series):
     return sorted(series.dropna().astype(str).str.strip().unique())
 
 # =========================================================
-# ATTRIBUTE FILTERS (use original GeoJSON labels)
+# ATTRIBUTE FILTERS
 # =========================================================
 st.sidebar.markdown("### 🗂️ Attribute Query")
 
@@ -232,22 +232,8 @@ if not gdf_se.empty:
     Draw(export=True).add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
 
-    # =========================================================
-# MAP
-# =========================================================
-minx, miny, maxx, maxy = gdf_idse.total_bounds
-m = folium.Map(location=[(miny+maxy)/2, (minx+maxx)/2], zoom_start=18)
-
-# ===== Base layers =====
-folium.TileLayer("OpenStreetMap").add_to(m)
-folium.TileLayer(
-    tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    name="Satellite",
-    attr="Esri",
-    control=True
-).add_to(m)
-
-m.fit_bounds([[miny,minx],[maxy,maxx]])
+    # Fit bounds
+    m.fit_bounds([[miny, minx], [maxy, maxx]])
 
     # Display map
     st_folium(m, height=550, use_container_width=True)
@@ -261,4 +247,3 @@ st.markdown("""
 Streamlit · GeoPandas · Folium  
 **Mahamadou Oumar CAMARA, PhD – Geomatics Engineering** © 2025
 """)
-
