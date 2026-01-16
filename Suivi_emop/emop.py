@@ -62,7 +62,7 @@ if not st.session_state.auth_ok:
 # =========================================================
 # LOAD SE POLYGONS
 # =========================================================
-#SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop/data/SE.geojson"
+SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop/data/SE.geojson"
 
 @st.cache_data(show_spinner=False)
 def load_se_data(url):
@@ -114,7 +114,7 @@ gdf_idse = gdf_commune if idse_selected == "No filter" else gdf_commune[gdf_comm
 # =========================================================
 # LOAD POINTS
 # =========================================================
-POINTS_URL = "https://raw.githubusercontent.com/Moccamara/web_mapping/master/data/concession.csv"
+#POINTS_URL = "https://raw.githubusercontent.com/Moccamara/web_mapping/master/data/concession.csv"
 
 @st.cache_data(show_spinner=False)
 def load_points_from_github(url):
@@ -168,16 +168,16 @@ if st.session_state.user_role == "Admin":
     if csv_file is not None:
         try:
             df_csv = pd.read_csv(csv_file)
-            required_cols = {"LAT", "LON"}
+            required_cols = {"Latitude", "Longitude"}
             if not required_cols.issubset(df_csv.columns):
-                st.sidebar.error("CSV must contain LAT and LON columns")
+                st.sidebar.error("CSV must contain Latitude and Longitude columns")
             else:
-                df_csv["LAT"] = pd.to_numeric(df_csv["LAT"], errors="coerce")
-                df_csv["LON"] = pd.to_numeric(df_csv["LON"], errors="coerce")
-                df_csv = df_csv.dropna(subset=["LAT", "LON"])
+                df_csv["LAT"] = pd.to_numeric(df_csv["Latitude"], errors="coerce")
+                df_csv["LON"] = pd.to_numeric(df_csv["Longitude"], errors="coerce")
+                df_csv = df_csv.dropna(subset=["Latitude", "Longitude"])
                 points_gdf = gpd.GeoDataFrame(
                     df_csv,
-                    geometry=gpd.points_from_xy(df_csv["LON"], df_csv["LAT"]),
+                    geometry=gpd.points_from_xy(df_csv["Longitude"], df_csv["Latitude"]),
                     crs="EPSG:4326"
                 )
                 st.session_state.points_gdf = points_gdf
@@ -299,6 +299,7 @@ st.markdown("""
 **Geospatial Enterprise Web Mapping** Developed with Streamlit, Folium & GeoPandas  
 **Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
 
 
