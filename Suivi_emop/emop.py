@@ -64,16 +64,13 @@ SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop
 def load_se_data(url):
     gdf = gpd.read_file(url)
 
-    # CRS handling
     if gdf.crs is None:
         gdf = gdf.set_crs(epsg=4326)
     else:
         gdf = gdf.to_crs(epsg=4326)
 
-    # Normalize column names
     gdf.columns = [c.lower().strip() for c in gdf.columns]
 
-    # Explicit renaming
     gdf = gdf.rename(columns={
         "lregion": "region",
         "lcerde": "cercle",
@@ -81,10 +78,9 @@ def load_se_data(url):
         "num_se": "se_id"
     })
 
-    # 🔴 FIX: remove duplicated column names (ROOT CAUSE)
+    # 🔴 critical fix
     gdf = gdf.loc[:, ~gdf.columns.duplicated()]
 
-    # Safety guarantees
     for col in ["region", "cercle", "commune", "se_id"]:
         if col not in gdf.columns:
             gdf[col] = None
@@ -92,16 +88,10 @@ def load_se_data(url):
     if "pop_se" not in gdf.columns:
         gdf["pop_se"] = 0
 
-    # Geometry validity
     gdf = gdf[gdf.is_valid & ~gdf.is_empty]
-
     return gdf
 
-try:
-    gdf = load_se_data(SE_URL)
-except Exception as e:
-    st.error(f"❌ Unable to load EMOP GeoJSON: {e}")
-    st.stop()
+gdf = load_se_data(SE_URL)
 
 # =========================================================
 # SIDEBAR HEADER
@@ -113,68 +103,44 @@ with st.sidebar:
         logout()
 
 # =========================================================
-# SAFE UNIQUE CLEAN FUNCTION
+# SAFE UNIQUE FUNCTION
 # =========================================================
 def unique_clean(series):
-    # If duplicate columns exist, keep the first
     if isinstance(series, pd.DataFrame):
         series = series.iloc[:, 0]
-
-    return sorted(
-        series
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .unique()
-    )
+    return sorted(series.dropna().astype(str).str.strip().unique())
 
 # =========================================================
 # ATTRIBUTE FILTERS
 # =========================================================
 st.sidebar.markdown("### 🗂️ Attribute Query")
 
-# REGION
-regions = unique_clean(gdf["region"])
-region = st.sidebar.selectbox("Region", regions)
+region = st.sidebar.selectbox("Region", unique_clean(gdf["region"]))
 gdf_r = gdf[gdf["region"] == region]
 
-# CERCLE
-cercles = unique_clean(gdf_r["cercle"])
-cercle = st.sidebar.selectbox("Cercle", cercles)
+cercle = st.sidebar.selectbox("Cercle", unique_clean(gdf_r["cercle"]))
 gdf_c = gdf_r[gdf_r["cercle"] == cercle]
 
-# COMMUNE
-communes = unique_clean(gdf_c["commune"])
-commune = st.sidebar.selectbox("Commune", communes)
+commune = st.sidebar.selectbox("Commune", unique_clean(gdf_c["commune"]))
 gdf_commune = gdf_c[gdf_c["commune"] == commune]
 
-# SE
 se_list = ["No filter"] + unique_clean(gdf_commune["se_id"])
 se_selected = st.sidebar.selectbox("SE (num_se)", se_list)
 
-gdf_se = (
-    gdf_commune
-    if se_selected == "No filter"
-    else gdf_commune[gdf_commune["se_id"] == se_selected]
-)
+gdf_se = gdf_commune if se_selected == "No filter" else gdf_commune[gdf_commune["se_id"] == se_selected]
 
 # =========================================================
 # SPATIAL QUERY
 # =========================================================
 st.sidebar.markdown("### 🧭 Spatial Query")
-query_type = st.sidebar.selectbox(
-    "Select query type", ["Intersects", "Within", "Contains"]
-)
+query_type = st.sidebar.selectbox("Query type", ["Intersects", "Within", "Contains"])
 
 if st.sidebar.button("Run Query"):
-    if st.session_state.points_gdf is not None and not gdf_se.empty:
+    if st.session_state.points_gdf is not None:
         pts = st.session_state.points_gdf.to_crs(gdf_se.crs)
         st.session_state.query_result = gpd.sjoin(
             pts, gdf_se, predicate=query_type.lower(), how="inner"
         )
-        st.sidebar.success(f"{len(st.session_state.query_result)} points found.")
-    else:
-        st.sidebar.error("No point data available.")
 
 # =========================================================
 # CSV UPLOAD (ADMIN)
@@ -185,28 +151,37 @@ if st.session_state.user_role == "Admin":
 
     if csv_file is not None:
         df = pd.read_csv(csv_file)
-
         if {"Latitude", "Longitude"}.issubset(df.columns):
-            gdf_pts = gpd.GeoDataFrame(
+            st.session_state.points_gdf = gpd.GeoDataFrame(
                 df,
                 geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
                 crs="EPSG:4326"
             )
-            st.session_state.points_gdf = gdf_pts
-            st.sidebar.success(f"✅ {len(gdf_pts)} points loaded")
-        else:
-            st.sidebar.error("CSV must contain Latitude & Longitude")
 
 # =========================================================
-# MAP
+# MAP (OSM + GOOGLE SATELLITE)
 # =========================================================
 if not gdf_se.empty:
     minx, miny, maxx, maxy = gdf_se.total_bounds
+
     m = folium.Map(
         location=[(miny + maxy) / 2, (minx + maxx) / 2],
-        zoom_start=13
+        zoom_start=13,
+        tiles=None
     )
 
+    # --- Base maps ---
+    folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(m)
+
+    folium.TileLayer(
+        tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        attr="Google",
+        name="Google Satellite",
+        overlay=False,
+        control=True
+    ).add_to(m)
+
+    # --- SE polygons ---
     folium.GeoJson(
         gdf_se,
         name="SE",
@@ -221,13 +196,8 @@ if not gdf_se.empty:
         },
     ).add_to(m)
 
-    points_to_show = (
-        st.session_state.query_result
-        if st.session_state.query_result is not None
-        else st.session_state.points_gdf
-    )
-
-    if points_to_show is not None and not points_to_show.empty:
+    points_to_show = st.session_state.query_result or st.session_state.points_gdf
+    if points_to_show is not None:
         for _, r in points_to_show.iterrows():
             folium.CircleMarker(
                 location=[r.geometry.y, r.geometry.x],
@@ -238,20 +208,9 @@ if not gdf_se.empty:
 
     MeasureControl().add_to(m)
     Draw(export=True).add_to(m)
-    folium.LayerControl().add_to(m)
+    folium.LayerControl(collapsed=False).add_to(m)
 
-    col_map, col_chart = st.columns((3, 1))
-
-    with col_map:
-        st_folium(m, height=520, use_container_width=True)
-
-    with col_chart:
-        if se_selected != "No filter":
-            st.subheader("📊 Population (SE)")
-            st.metric(
-                label=f"SE {se_selected}",
-                value=int(gdf_se["pop_se"].sum())
-            )
+    st_folium(m, height=550, use_container_width=True)
 
 # =========================================================
 # FOOTER
