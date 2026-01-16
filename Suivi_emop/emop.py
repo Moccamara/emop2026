@@ -139,27 +139,38 @@ if st.sidebar.button("Run Query"):
         st.sidebar.error("No point data available.")
 
 # =========================================================
-# CSV UPLOAD (ADMIN)
+# CSV UPLOAD (ADMIN ONLY) — FIXED ENCODING
 # =========================================================
 if st.session_state.user_role == "Admin":
     st.sidebar.markdown("### 📥 Upload CSV Points (Admin)")
     csv_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
-    if csv_file:
-        df = pd.read_csv(csv_file)
-        if {"Latitude", "Longitude"}.issubset(df.columns):
-            df["Latitude"] = pd.to_numeric(df["Latitude"], errors="coerce")
-            df["Longitude"] = pd.to_numeric(df["Longitude"], errors="coerce")
-            df = df.dropna(subset=["Latitude", "Longitude"])
-            points_gdf = gpd.GeoDataFrame(
-                df,
-                geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
-                crs="EPSG:4326",
-            )
-            st.session_state.points_gdf = points_gdf
-            st.sidebar.success(f"✅ {len(points_gdf)} points loaded")
-        else:
-            st.sidebar.error("CSV must contain Latitude & Longitude")
 
+    if csv_file is not None:
+        try:
+            try:
+                df = pd.read_csv(csv_file, encoding="utf-8")
+            except UnicodeDecodeError:
+                df = pd.read_csv(csv_file, encoding="latin1")
+
+            required_cols = {"Latitude", "Longitude"}
+            if not required_cols.issubset(df.columns):
+                st.sidebar.error("CSV must contain 'Latitude' and 'Longitude'")
+            else:
+                df["Latitude"] = pd.to_numeric(df["Latitude"], errors="coerce")
+                df["Longitude"] = pd.to_numeric(df["Longitude"], errors="coerce")
+                df = df.dropna(subset=["Latitude", "Longitude"])
+
+                points_gdf = gpd.GeoDataFrame(
+                    df,
+                    geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
+                    crs="EPSG:4326"
+                )
+
+                st.session_state.points_gdf = points_gdf
+                st.sidebar.success(f"✅ {len(points_gdf)} points loaded")
+
+        except Exception as e:
+            st.sidebar.error(f"Failed to read CSV: {e}")
 # =========================================================
 # MAP
 # =========================================================
@@ -228,3 +239,4 @@ st.markdown("""
 Developed with Streamlit, Folium & GeoPandas  
 **Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
