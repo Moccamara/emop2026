@@ -131,7 +131,7 @@ regions = unique_clean(gdf["lregion"])
 region = st.sidebar.selectbox("Region", regions)
 gdf_r = gdf[gdf["lregion"] == region]
 
-# CERCLE
+# CERCLE (label)
 cercles = unique_clean(gdf_r["lcerde"])
 cercle = st.sidebar.selectbox("Cercle", cercles)
 gdf_c = gdf_r[gdf_r["lcerde"] == cercle]
@@ -180,7 +180,7 @@ if st.session_state.user_role == "Admin":
             st.sidebar.error("CSV must contain Latitude & Longitude")
 
 # =========================================================
-# MAP (OSM + GOOGLE SATELLITE + Dynamic Legend)
+# MAP (OSM + GOOGLE SATELLITE + Collapsible Legend)
 # =========================================================
 if not gdf_se.empty:
     minx, miny, maxx, maxy = gdf_se.total_bounds
@@ -202,40 +202,37 @@ if not gdf_se.empty:
     ).add_to(m)
 
     # SE polygons
+    se_group = folium.FeatureGroup(name="SE")
     folium.GeoJson(
         gdf_se,
-        name="SE",
         tooltip=folium.GeoJsonTooltip(
             fields=["num_se", "pop_se"],
             aliases=["SE Number", "Population"]
         ),
-        style_function=lambda x: {
-            "color": "blue",
-            "weight": 2,
-            "fillOpacity": 0.2,
-        },
-    ).add_to(m)
+        style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.2},
+    ).add_to(se_group)
+    se_group.add_to(m)
 
-    # CRS check & points plotting
-    if st.session_state.points_gdf is not None:
+    # CSV points (Concession)
+    if st.session_state.points_gdf is not None and not st.session_state.points_gdf.empty:
         st.session_state.points_gdf = st.session_state.points_gdf.to_crs(gdf_se.crs)
-
-    points_to_show = st.session_state.query_result if st.session_state.query_result is not None else st.session_state.points_gdf
-
-    if points_to_show is not None and not points_to_show.empty:
-        for _, r in points_to_show.iterrows():
+        concession_group = folium.FeatureGroup(name="Concession")
+        for _, r in st.session_state.points_gdf.iterrows():
             folium.CircleMarker(
                 location=[r.geometry.y, r.geometry.x],
                 radius=4,
                 color="red",
                 fill=True,
                 fill_opacity=0.7
-            ).add_to(m)
+            ).add_to(concession_group)
+        concession_group.add_to(m)
 
     # Measure & Draw
     MeasureControl().add_to(m)
     Draw(export=True).add_to(m)
-    folium.LayerControl(collapsed=False).add_to(m)
+
+    # Collapsible legend
+    folium.LayerControl(collapsed=True).add_to(m)
 
     # Fit bounds
     m.fit_bounds([[miny, minx], [maxy, maxx]])
@@ -252,4 +249,3 @@ st.markdown("""
 Streamlit · GeoPandas · Folium  
 **Mahamadou Oumar CAMARA, PhD – Geomatics Engineering** © 2025
 """)
-
