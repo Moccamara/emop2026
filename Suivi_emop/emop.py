@@ -176,6 +176,7 @@ if st.session_state.user_role == "Admin":
                 crs="EPSG:4326"
             )
             st.sidebar.success(f"✅ {len(df)} points loaded")
+            st.experimental_rerun()  # Update the map immediately
         else:
             st.sidebar.error("CSV must contain Latitude & Longitude")
 
@@ -216,15 +217,20 @@ if not gdf_se.empty:
         },
     ).add_to(m)
 
-    # Points
-    points_to_show = st.session_state.query_result or st.session_state.points_gdf
+    # CRS check & points plotting
+    if st.session_state.points_gdf is not None:
+        st.session_state.points_gdf = st.session_state.points_gdf.to_crs(gdf_se.crs)
+
+    points_to_show = st.session_state.query_result if st.session_state.query_result is not None else st.session_state.points_gdf
+
     if points_to_show is not None and not points_to_show.empty:
         for _, r in points_to_show.iterrows():
             folium.CircleMarker(
                 location=[r.geometry.y, r.geometry.x],
-                radius=3,
+                radius=4,
                 color="red",
                 fill=True,
+                fill_opacity=0.7
             ).add_to(m)
 
     # Measure & Draw
