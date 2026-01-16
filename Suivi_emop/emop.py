@@ -134,7 +134,7 @@ gdf_r = gdf[gdf["lregion"] == region]
 # CERCLE (label)
 cercles = unique_clean(gdf_r["lcercle"])
 cercle = st.sidebar.selectbox("Cercle", cercles)
-gdf_c = gdf_r[gdf_r["lcercle"] == cercle]  # filter by label
+gdf_c = gdf_r[gdf_r["lcercle"] == cercle]
 
 # COMMUNE
 communes = unique_clean(gdf_c["lcommune"])
@@ -249,5 +249,4 @@ st.markdown("""
 Streamlit · GeoPandas · Folium  
 **Mahamadou Oumar CAMARA, PhD – Geomatics Engineering** © 2025
 """)
-
 
