@@ -69,8 +69,10 @@ def load_se_data(url):
     else:
         gdf = gdf.to_crs(epsg=4326)
 
+    # Normalize column names
     gdf.columns = [c.lower().strip() for c in gdf.columns]
 
+    # Renaming for internal processing
     gdf = gdf.rename(columns={
         "lregion": "region",
         "lcerde": "cercle",
@@ -78,20 +80,24 @@ def load_se_data(url):
         "num_se": "se_id"
     })
 
-    # 🔴 critical fix
+    # 🔴 Remove duplicate columns
     gdf = gdf.loc[:, ~gdf.columns.duplicated()]
 
+    # Safety guarantees
     for col in ["region", "cercle", "commune", "se_id"]:
         if col not in gdf.columns:
             gdf[col] = None
-
     if "pop_se" not in gdf.columns:
         gdf["pop_se"] = 0
 
     gdf = gdf[gdf.is_valid & ~gdf.is_empty]
     return gdf
 
-gdf = load_se_data(SE_URL)
+try:
+    gdf = load_se_data(SE_URL)
+except Exception as e:
+    st.error(f"❌ Unable to load EMOP GeoJSON: {e}")
+    st.stop()
 
 # =========================================================
 # SIDEBAR HEADER
@@ -111,22 +117,28 @@ def unique_clean(series):
     return sorted(series.dropna().astype(str).str.strip().unique())
 
 # =========================================================
-# ATTRIBUTE FILTERS
+# ATTRIBUTE FILTERS (use original GeoJSON labels)
 # =========================================================
 st.sidebar.markdown("### 🗂️ Attribute Query")
 
-region = st.sidebar.selectbox("Region", unique_clean(gdf["region"]))
-gdf_r = gdf[gdf["region"] == region]
+# REGION (lregion)
+regions = unique_clean(gdf["lregion"])
+region = st.sidebar.selectbox("Region", regions)
+gdf_r = gdf[gdf["lregion"] == region]
 
-cercle = st.sidebar.selectbox("Cercle", unique_clean(gdf_r["cercle"]))
-gdf_c = gdf_r[gdf_r["cercle"] == cercle]
+# CERCLE (lcerde)
+cercles = unique_clean(gdf_r["lcerde"])
+cercle = st.sidebar.selectbox("Cercle", cercles)
+gdf_c = gdf_r[gdf_r["lcerde"] == cercle]
 
-commune = st.sidebar.selectbox("Commune", unique_clean(gdf_c["commune"]))
-gdf_commune = gdf_c[gdf_c["commune"] == commune]
+# COMMUNE (lcommune)
+communes = unique_clean(gdf_c["lcommune"])
+commune = st.sidebar.selectbox("Commune", communes)
+gdf_commune = gdf_c[gdf_c["lcommune"] == commune]
 
+# SE (num_se)
 se_list = ["No filter"] + unique_clean(gdf_commune["se_id"])
 se_selected = st.sidebar.selectbox("SE (num_se)", se_list)
-
 gdf_se = gdf_commune if se_selected == "No filter" else gdf_commune[gdf_commune["se_id"] == se_selected]
 
 # =========================================================
@@ -134,13 +146,15 @@ gdf_se = gdf_commune if se_selected == "No filter" else gdf_commune[gdf_commune[
 # =========================================================
 st.sidebar.markdown("### 🧭 Spatial Query")
 query_type = st.sidebar.selectbox("Query type", ["Intersects", "Within", "Contains"])
-
 if st.sidebar.button("Run Query"):
-    if st.session_state.points_gdf is not None:
+    if st.session_state.points_gdf is not None and not gdf_se.empty:
         pts = st.session_state.points_gdf.to_crs(gdf_se.crs)
         st.session_state.query_result = gpd.sjoin(
             pts, gdf_se, predicate=query_type.lower(), how="inner"
         )
+        st.sidebar.success(f"{len(st.session_state.query_result)} points found.")
+    else:
+        st.sidebar.error("No point data available.")
 
 # =========================================================
 # CSV UPLOAD (ADMIN)
@@ -148,7 +162,6 @@ if st.sidebar.button("Run Query"):
 if st.session_state.user_role == "Admin":
     st.sidebar.markdown("### 📥 Upload CSV Points")
     csv_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
-
     if csv_file is not None:
         df = pd.read_csv(csv_file)
         if {"Latitude", "Longitude"}.issubset(df.columns):
@@ -157,9 +170,12 @@ if st.session_state.user_role == "Admin":
                 geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
                 crs="EPSG:4326"
             )
+            st.sidebar.success(f"✅ {len(df)} points loaded")
+        else:
+            st.sidebar.error("CSV must contain Latitude & Longitude")
 
 # =========================================================
-# MAP (OSM + GOOGLE SATELLITE)
+# MAP (OSM + GOOGLE SATELLITE + Dynamic Legend)
 # =========================================================
 if not gdf_se.empty:
     minx, miny, maxx, maxy = gdf_se.total_bounds
@@ -170,9 +186,8 @@ if not gdf_se.empty:
         tiles=None
     )
 
-    # --- Base maps ---
+    # Base maps
     folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(m)
-
     folium.TileLayer(
         tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
         attr="Google",
@@ -181,7 +196,7 @@ if not gdf_se.empty:
         control=True
     ).add_to(m)
 
-    # --- SE polygons ---
+    # SE polygons
     folium.GeoJson(
         gdf_se,
         name="SE",
@@ -196,8 +211,9 @@ if not gdf_se.empty:
         },
     ).add_to(m)
 
+    # Points
     points_to_show = st.session_state.query_result or st.session_state.points_gdf
-    if points_to_show is not None:
+    if points_to_show is not None and not points_to_show.empty:
         for _, r in points_to_show.iterrows():
             folium.CircleMarker(
                 location=[r.geometry.y, r.geometry.x],
@@ -206,10 +222,39 @@ if not gdf_se.empty:
                 fill=True,
             ).add_to(m)
 
+    # Measure & Draw
     MeasureControl().add_to(m)
     Draw(export=True).add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
 
+    # Dynamic collapsible legend
+    legend_html = """
+     <div id="legend" style="
+         position: fixed;
+         bottom: 50px;
+         left: 50px;
+         width: 180px;
+         height: auto;
+         z-index:9999;
+         background-color:white;
+         padding: 10px;
+         border:2px solid grey;
+         box-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+         font-size:14px;
+         display:none;
+     ">
+         <h4 style="margin:5px">Legend</h4>
+         <i style="background:blue;width:12px;height:12px;display:inline-block;margin-right:5px;"></i> SE Polygon <br>
+         <i style="background:red;width:12px;height:12px;display:inline-block;margin-right:5px;"></i> Points
+     </div>
+     <button onclick="var x=document.getElementById('legend'); if(x.style.display==='none'){x.style.display='block';} else{x.style.display='none';}"
+             style="position: fixed; bottom: 20px; left: 50px; z-index:9999; padding:5px 10px;">Toggle Legend</button>
+    """
+    from folium import Html, Element
+    legend_element = Element(Html(legend_html, script=True))
+    m.get_root().html.add_child(legend_element)
+
+    # Display map
     st_folium(m, height=550, use_container_width=True)
 
 # =========================================================
