@@ -112,30 +112,6 @@ idse_selected = st.sidebar.selectbox("Unit_Geo", idse_list)
 gdf_idse = gdf_commune if idse_selected == "No filter" else gdf_commune[gdf_commune["idse_new"] == idse_selected]
 
 # =========================================================
-# LOAD POINTS
-# =========================================================
-#POINTS_URL = "https://raw.githubusercontent.com/Moccamara/web_mapping/master/data/concession.csv"
-
-@st.cache_data(show_spinner=False)
-def load_points_from_github(url):
-    try:
-        df = pd.read_csv(url)
-        if not {"LAT", "LON"}.issubset(df.columns):
-            return None
-        df["LAT"] = pd.to_numeric(df["LAT"], errors="coerce")
-        df["LON"] = pd.to_numeric(df["LON"], errors="coerce")
-        df = df.dropna(subset=["LAT", "LON"])
-        return gpd.GeoDataFrame(
-            df,
-            geometry=gpd.points_from_xy(df["LON"], df["LAT"]),
-            crs="EPSG:4326"
-        )
-    except:
-        return None
-
-points_gdf = st.session_state.points_gdf if st.session_state.points_gdf is not None else load_points_from_github(POINTS_URL)
-
-# =========================================================
 # SPATIAL QUERY SIDEBAR
 # =========================================================
 st.sidebar.markdown("### 🧭 Spatial Query")
@@ -299,6 +275,7 @@ st.markdown("""
 **Geospatial Enterprise Web Mapping** Developed with Streamlit, Folium & GeoPandas  
 **Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
 
 
