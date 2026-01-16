@@ -118,22 +118,50 @@ with st.sidebar:
 # =========================================================
 st.sidebar.markdown("### 🗂️ Attribute Query")
 
-region = st.sidebar.selectbox("Region", sorted(gdf["region"].dropna().unique()))
-gdf_r = gdf[gdf["region"] == region]
+# --- Normalize column names (DO THIS ONCE in your app) ---
+gdf.columns = gdf.columns.str.strip().str.lower()
 
-cercle = st.sidebar.selectbox("Cercle", sorted(gdf_r["cercle"].dropna().unique()))
-gdf_c = gdf_r[gdf_r["cercle"] == cercle]
+# --- REGION ---
+regions = sorted(gdf["region"].dropna().unique())
 
-commune = st.sidebar.selectbox("Commune", sorted(gdf_c["commune"].dropna().unique()))
-gdf_commune = gdf_c[gdf_c["commune"] == commune]
+if regions:
+    region = st.sidebar.selectbox("Region", regions)
+    gdf_r = gdf[gdf["region"] == region]
+else:
+    st.sidebar.warning("No Region data available")
+    gdf_r = gdf.copy()
 
+# --- CERCLE ---
+cercles = sorted(gdf_r["cercle"].dropna().unique())
+
+if cercles:
+    cercle = st.sidebar.selectbox("Cercle", cercles)
+    gdf_c = gdf_r[gdf_r["cercle"] == cercle]
+else:
+    st.sidebar.warning("No Cercle data available")
+    gdf_c = gdf_r.copy()
+
+# --- COMMUNE ---
+communes = sorted(gdf_c["commune"].dropna().unique())
+
+if communes:
+    commune = st.sidebar.selectbox("Commune", communes)
+    gdf_commune = gdf_c[gdf_c["commune"] == commune]
+else:
+    st.sidebar.warning("No Commune data available")
+    gdf_commune = gdf_c.copy()
+
+# --- IDSE / UNIT GEO ---
 idse_list = ["No filter"] + sorted(gdf_commune["idse_new"].dropna().unique())
+
 idse_selected = st.sidebar.selectbox("Unit_Geo", idse_list)
 
 gdf_idse = (
-    gdf_commune if idse_selected == "No filter"
+    gdf_commune
+    if idse_selected == "No filter"
     else gdf_commune[gdf_commune["idse_new"] == idse_selected]
 )
+
 
 # =========================================================
 # SPATIAL QUERY
@@ -284,4 +312,5 @@ st.markdown("""
 Developed with Streamlit, Folium & GeoPandas  
 **Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
