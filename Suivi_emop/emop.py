@@ -232,32 +232,22 @@ if not gdf_se.empty:
     Draw(export=True).add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
 
-    # Dynamic collapsible legend
-    legend_html = """
-     <div id="legend" style="
-         position: fixed;
-         bottom: 50px;
-         left: 50px;
-         width: 180px;
-         height: auto;
-         z-index:9999;
-         background-color:white;
-         padding: 10px;
-         border:2px solid grey;
-         box-shadow: 3px 3px 6px rgba(0,0,0,0.3);
-         font-size:14px;
-         display:none;
-     ">
-         <h4 style="margin:5px">Legend</h4>
-         <i style="background:blue;width:12px;height:12px;display:inline-block;margin-right:5px;"></i> SE Polygon <br>
-         <i style="background:red;width:12px;height:12px;display:inline-block;margin-right:5px;"></i> Points
-     </div>
-     <button onclick="var x=document.getElementById('legend'); if(x.style.display==='none'){x.style.display='block';} else{x.style.display='none';}"
-             style="position: fixed; bottom: 20px; left: 50px; z-index:9999; padding:5px 10px;">Toggle Legend</button>
-    """
-    from folium import Html, Element
-    legend_element = Element(Html(legend_html, script=True))
-    m.get_root().html.add_child(legend_element)
+    # =========================================================
+# MAP
+# =========================================================
+minx, miny, maxx, maxy = gdf_idse.total_bounds
+m = folium.Map(location=[(miny+maxy)/2, (minx+maxx)/2], zoom_start=18)
+
+# ===== Base layers =====
+folium.TileLayer("OpenStreetMap").add_to(m)
+folium.TileLayer(
+    tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    name="Satellite",
+    attr="Esri",
+    control=True
+).add_to(m)
+
+m.fit_bounds([[miny,minx],[maxy,maxx]])
 
     # Display map
     st_folium(m, height=550, use_container_width=True)
@@ -271,3 +261,4 @@ st.markdown("""
 Streamlit · GeoPandas · Folium  
 **Mahamadou Oumar CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
