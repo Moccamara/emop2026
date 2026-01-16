@@ -9,8 +9,8 @@ import altair as alt
 # =========================================================
 # APP CONFIG
 # =========================================================
-st.set_page_config(layout="wide", page_title="Geospatial Enterprise Solution")
-st.title("🌍 Geospatial Enterprise Solution")
+st.set_page_config(layout="wide", page_title="EMOP 2026 – Suivi")
+st.title("🌍 EMOP 2026 – Geospatial Monitoring Dashboard")
 
 # =========================================================
 # USERS AND ROLES
@@ -56,7 +56,7 @@ if not st.session_state.auth_ok:
     st.stop()
 
 # =========================================================
-# LOAD SE POLYGONS
+# LOAD SE POLYGONS (REAL SCHEMA)
 # =========================================================
 SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop/data/emop2026.geojson"
 
@@ -70,29 +70,24 @@ def load_se_data(url):
     else:
         gdf = gdf.to_crs(epsg=4326)
 
-    # Normalize column names
+    # Normalize columns
     gdf.columns = [c.lower().strip() for c in gdf.columns]
 
-    # Flexible renaming (EMOP-proof)
-    rename_map = {}
-    for c in gdf.columns:
-        if "region" in c:
-            rename_map[c] = "region"
-        elif "cercle" in c:
-            rename_map[c] = "cercle"
-        elif "commune" in c:
-            rename_map[c] = "commune"
+    # Explicit renaming based on your REAL table
+    gdf = gdf.rename(columns={
+        "lregion": "region",
+        "lcerde": "cercle",
+        "lcommune": "commune",
+        "num_se": "se_id"
+    })
 
-    gdf = gdf.rename(columns=rename_map)
-
-    # Guarantee required fields
-    for col in ["region", "cercle", "commune", "idse_new"]:
+    # Safety guarantees
+    for col in ["region", "cercle", "commune", "se_id"]:
         if col not in gdf.columns:
             gdf[col] = None
 
-    for col in ["pop_se", "pop_se_ct"]:
-        if col not in gdf.columns:
-            gdf[col] = 0
+    if "pop_se" not in gdf.columns:
+        gdf["pop_se"] = 0
 
     # Geometry validity
     gdf = gdf[gdf.is_valid & ~gdf.is_empty]
@@ -102,7 +97,7 @@ def load_se_data(url):
 try:
     gdf = load_se_data(SE_URL)
 except Exception as e:
-    st.error(f"❌ Unable to load GeoJSON: {e}")
+    st.error(f"❌ Unable to load EMOP GeoJSON: {e}")
     st.stop()
 
 # =========================================================
@@ -110,47 +105,46 @@ except Exception as e:
 # =========================================================
 with st.sidebar:
     st.image("Suivi_emop/logo/emop.png", width=200)
-    st.markdown(f"**Logged in as:** {st.session_state.username} ({st.session_state.user_role})")
+    st.markdown(f"**User:** {st.session_state.username} ({st.session_state.user_role})")
     if st.button("Logout"):
         logout()
 
 # =========================================================
-# ATTRIBUTE FILTERS (NO .str ANYWHERE)
+# ATTRIBUTE FILTERS (MATCH REAL DATA)
 # =========================================================
 st.sidebar.markdown("### 🗂️ Attribute Query")
 
 def unique_clean(series):
     return sorted(
         series
-        .apply(lambda x: str(x).strip() if x not in [None, "", "nan"] else None)
+        .apply(lambda x: str(x).strip() if pd.notna(x) else None)
         .dropna()
         .unique()
     )
 
 # REGION
 regions = unique_clean(gdf["region"])
-region = st.sidebar.selectbox("Region", regions) if regions else None
-gdf_r = gdf[gdf["region"] == region] if region else gdf
+region = st.sidebar.selectbox("Region", regions)
+gdf_r = gdf[gdf["region"] == region]
 
 # CERCLE
 cercles = unique_clean(gdf_r["cercle"])
-cercle = st.sidebar.selectbox("Cercle", cercles) if cercles else None
-gdf_c = gdf_r[gdf_r["cercle"] == cercle] if cercle else gdf_r
+cercle = st.sidebar.selectbox("Cercle", cercles)
+gdf_c = gdf_r[gdf_r["cercle"] == cercle]
 
 # COMMUNE
 communes = unique_clean(gdf_c["commune"])
-commune = st.sidebar.selectbox("Commune", communes) if communes else None
-gdf_commune = gdf_c[gdf_c["commune"] == commune] if commune else gdf_c
+commune = st.sidebar.selectbox("Commune", communes)
+gdf_commune = gdf_c[gdf_c["commune"] == commune]
 
-# IDSE
-idse_values = unique_clean(gdf_commune["idse_new"])
-idse_list = ["No filter"] + idse_values
-idse_selected = st.sidebar.selectbox("Unit_Geo", idse_list)
+# SE (num_se)
+se_list = ["No filter"] + unique_clean(gdf_commune["se_id"])
+se_selected = st.sidebar.selectbox("SE (num_se)", se_list)
 
-gdf_idse = (
+gdf_se = (
     gdf_commune
-    if idse_selected == "No filter"
-    else gdf_commune[gdf_commune["idse_new"] == idse_selected]
+    if se_selected == "No filter"
+    else gdf_commune[gdf_commune["se_id"] == se_selected]
 )
 
 # =========================================================
@@ -160,10 +154,10 @@ st.sidebar.markdown("### 🧭 Spatial Query")
 query_type = st.sidebar.selectbox("Select query type", ["Intersects", "Within", "Contains"])
 
 if st.sidebar.button("Run Query"):
-    if st.session_state.points_gdf is not None and not gdf_idse.empty:
-        pts = st.session_state.points_gdf.to_crs(gdf_idse.crs)
+    if st.session_state.points_gdf is not None and not gdf_se.empty:
+        pts = st.session_state.points_gdf.to_crs(gdf_se.crs)
         st.session_state.query_result = gpd.sjoin(
-            pts, gdf_idse, predicate=query_type.lower(), how="inner"
+            pts, gdf_se, predicate=query_type.lower(), how="inner"
         )
         st.sidebar.success(f"{len(st.session_state.query_result)} points found.")
     else:
@@ -192,17 +186,20 @@ if st.session_state.user_role == "Admin":
 # =========================================================
 # MAP
 # =========================================================
-if not gdf_idse.empty:
-    minx, miny, maxx, maxy = gdf_idse.total_bounds
+if not gdf_se.empty:
+    minx, miny, maxx, maxy = gdf_se.total_bounds
     m = folium.Map(
         location=[(miny + maxy) / 2, (minx + maxx) / 2],
         zoom_start=13
     )
 
     folium.GeoJson(
-        gdf_idse,
-        name="IDSE",
-        tooltip=folium.GeoJsonTooltip(fields=["idse_new", "pop_se", "pop_se_ct"]),
+        gdf_se,
+        name="SE",
+        tooltip=folium.GeoJsonTooltip(
+            fields=["se_id", "pop_se"],
+            aliases=["SE Number", "Population"]
+        ),
         style_function=lambda x: {
             "color": "blue",
             "weight": 2,
@@ -230,22 +227,11 @@ if not gdf_idse.empty:
         st_folium(m, height=520, use_container_width=True)
 
     with col_chart:
-        if idse_selected != "No filter":
-            df_long = gdf_idse.melt(
-                id_vars="idse_new",
-                value_vars=["pop_se", "pop_se_ct"],
-                var_name="Type",
-                value_name="Population",
-            )
-            st.altair_chart(
-                alt.Chart(df_long)
-                .mark_bar()
-                .encode(
-                    x="Type:N",
-                    y="Population:Q",
-                    color="Type:N"
-                ),
-                use_container_width=True,
+        if se_selected != "No filter":
+            st.subheader("📊 Population (SE)")
+            st.metric(
+                label=f"SE {se_selected}",
+                value=int(gdf_se["pop_se"].sum())
             )
 
 # =========================================================
@@ -253,7 +239,7 @@ if not gdf_idse.empty:
 # =========================================================
 st.markdown("""
 ---
-**Geospatial Enterprise Web Mapping**  
+**EMOP 2026 – Suivi Géospatial**  
 Streamlit · GeoPandas · Folium  
 **Mahamadou Oumar CAMARA, PhD – Geomatics Engineering** © 2025
 """)
