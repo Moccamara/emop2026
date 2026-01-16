@@ -34,8 +34,7 @@ if "auth_ok" not in st.session_state:
 # LOGOUT
 # =========================================================
 def logout():
-    for k in list(st.session_state.keys()):
-        del st.session_state[k]
+    st.session_state.clear()
     st.rerun()
 
 # =========================================================
@@ -65,37 +64,37 @@ SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop
 def load_se_data(url):
     gdf = gpd.read_file(url)
 
-    # CRS fix
+    # CRS
     if gdf.crs is None:
         gdf = gdf.set_crs(epsg=4326)
     else:
         gdf = gdf.to_crs(epsg=4326)
 
-    # Normalize columns
-    gdf.columns = gdf.columns.str.lower().str.strip()
+    # Normalize column names
+    gdf.columns = [c.lower().strip() for c in gdf.columns]
 
-    # Flexible renaming (handles ALL EMOP schemas)
+    # Flexible renaming (EMOP-proof)
     rename_map = {}
-    for col in gdf.columns:
-        if "region" in col:
-            rename_map[col] = "region"
-        elif "cercle" in col:
-            rename_map[col] = "cercle"
-        elif "commune" in col:
-            rename_map[col] = "commune"
+    for c in gdf.columns:
+        if "region" in c:
+            rename_map[c] = "region"
+        elif "cercle" in c:
+            rename_map[c] = "cercle"
+        elif "commune" in c:
+            rename_map[c] = "commune"
 
     gdf = gdf.rename(columns=rename_map)
 
-    # Guarantee required columns
+    # Guarantee required fields
     for col in ["region", "cercle", "commune", "idse_new"]:
         if col not in gdf.columns:
-            gdf[col] = ""
+            gdf[col] = None
 
     for col in ["pop_se", "pop_se_ct"]:
         if col not in gdf.columns:
             gdf[col] = 0
 
-    # Geometry cleaning
+    # Geometry validity
     gdf = gdf[gdf.is_valid & ~gdf.is_empty]
 
     return gdf
@@ -103,7 +102,7 @@ def load_se_data(url):
 try:
     gdf = load_se_data(SE_URL)
 except Exception as e:
-    st.error(f"❌ Unable to load SE.geojson: {e}")
+    st.error(f"❌ Unable to load GeoJSON: {e}")
     st.stop()
 
 # =========================================================
@@ -116,51 +115,36 @@ with st.sidebar:
         logout()
 
 # =========================================================
-# ATTRIBUTE FILTERS
+# ATTRIBUTE FILTERS (NO .str ANYWHERE)
 # =========================================================
 st.sidebar.markdown("### 🗂️ Attribute Query")
 
-# --- REGION ---
-regions = sorted(
-    gdf["region"].astype(str).str.strip().replace("", pd.NA).dropna().unique()
-)
+def unique_clean(series):
+    return sorted(
+        series
+        .apply(lambda x: str(x).strip() if x not in [None, "", "nan"] else None)
+        .dropna()
+        .unique()
+    )
 
-if regions:
-    region = st.sidebar.selectbox("Region", regions)
-    gdf_r = gdf[gdf["region"] == region]
-else:
-    st.sidebar.warning("No Region data available")
-    gdf_r = gdf.copy()
+# REGION
+regions = unique_clean(gdf["region"])
+region = st.sidebar.selectbox("Region", regions) if regions else None
+gdf_r = gdf[gdf["region"] == region] if region else gdf
 
-# --- CERCLE ---
-cercles = sorted(
-    gdf_r["cercle"].astype(str).str.strip().replace("", pd.NA).dropna().unique()
-)
+# CERCLE
+cercles = unique_clean(gdf_r["cercle"])
+cercle = st.sidebar.selectbox("Cercle", cercles) if cercles else None
+gdf_c = gdf_r[gdf_r["cercle"] == cercle] if cercle else gdf_r
 
-if cercles:
-    cercle = st.sidebar.selectbox("Cercle", cercles)
-    gdf_c = gdf_r[gdf_r["cercle"] == cercle]
-else:
-    st.sidebar.warning("No Cercle data available")
-    gdf_c = gdf_r.copy()
+# COMMUNE
+communes = unique_clean(gdf_c["commune"])
+commune = st.sidebar.selectbox("Commune", communes) if communes else None
+gdf_commune = gdf_c[gdf_c["commune"] == commune] if commune else gdf_c
 
-# --- COMMUNE ---
-communes = sorted(
-    gdf_c["commune"].astype(str).str.strip().replace("", pd.NA).dropna().unique()
-)
-
-if communes:
-    commune = st.sidebar.selectbox("Commune", communes)
-    gdf_commune = gdf_c[gdf_c["commune"] == commune]
-else:
-    st.sidebar.warning("No Commune data available")
-    gdf_commune = gdf_c.copy()
-
-# --- IDSE ---
-idse_list = ["No filter"] + sorted(
-    gdf_commune["idse_new"].astype(str).str.strip().replace("", pd.NA).dropna().unique()
-)
-
+# IDSE
+idse_values = unique_clean(gdf_commune["idse_new"])
+idse_list = ["No filter"] + idse_values
 idse_selected = st.sidebar.selectbox("Unit_Geo", idse_list)
 
 gdf_idse = (
@@ -186,26 +170,24 @@ if st.sidebar.button("Run Query"):
         st.sidebar.error("No point data available.")
 
 # =========================================================
-# CSV UPLOAD (ADMIN ONLY)
+# CSV UPLOAD (ADMIN)
 # =========================================================
 if st.session_state.user_role == "Admin":
-    st.sidebar.markdown("### 📥 Upload CSV Points (Admin)")
+    st.sidebar.markdown("### 📥 Upload CSV Points")
     csv_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 
     if csv_file is not None:
         df = pd.read_csv(csv_file)
-        df = df.rename(columns=str.strip)
-
         if {"Latitude", "Longitude"}.issubset(df.columns):
-            points_gdf = gpd.GeoDataFrame(
+            gdf_pts = gpd.GeoDataFrame(
                 df,
                 geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
-                crs="EPSG:4326",
+                crs="EPSG:4326"
             )
-            st.session_state.points_gdf = points_gdf
-            st.sidebar.success(f"✅ {len(points_gdf)} points loaded")
+            st.session_state.points_gdf = gdf_pts
+            st.sidebar.success(f"✅ {len(gdf_pts)} points loaded")
         else:
-            st.sidebar.error("CSV must contain Latitude and Longitude")
+            st.sidebar.error("CSV must contain Latitude & Longitude")
 
 # =========================================================
 # MAP
@@ -214,15 +196,13 @@ if not gdf_idse.empty:
     minx, miny, maxx, maxy = gdf_idse.total_bounds
     m = folium.Map(
         location=[(miny + maxy) / 2, (minx + maxx) / 2],
-        zoom_start=13,
+        zoom_start=13
     )
 
     folium.GeoJson(
         gdf_idse,
         name="IDSE",
-        tooltip=folium.GeoJsonTooltip(
-            fields=["idse_new", "pop_se", "pop_se_ct"]
-        ),
+        tooltip=folium.GeoJsonTooltip(fields=["idse_new", "pop_se", "pop_se_ct"]),
         style_function=lambda x: {
             "color": "blue",
             "weight": 2,
@@ -230,9 +210,9 @@ if not gdf_idse.empty:
         },
     ).add_to(m)
 
-    display_points = st.session_state.query_result or st.session_state.points_gdf
-    if display_points is not None and not display_points.empty:
-        for _, r in display_points.iterrows():
+    points_to_show = st.session_state.query_result or st.session_state.points_gdf
+    if points_to_show is not None and not points_to_show.empty:
+        for _, r in points_to_show.iterrows():
             folium.CircleMarker(
                 location=[r.geometry.y, r.geometry.x],
                 radius=3,
@@ -247,7 +227,7 @@ if not gdf_idse.empty:
     col_map, col_chart = st.columns((3, 1))
 
     with col_map:
-        st_folium(m, height=500, use_container_width=True)
+        st_folium(m, height=520, use_container_width=True)
 
     with col_chart:
         if idse_selected != "No filter":
@@ -257,14 +237,13 @@ if not gdf_idse.empty:
                 var_name="Type",
                 value_name="Population",
             )
-
             st.altair_chart(
                 alt.Chart(df_long)
                 .mark_bar()
                 .encode(
-                    x="idse_new:N",
+                    x="Type:N",
                     y="Population:Q",
-                    color="Type:N",
+                    color="Type:N"
                 ),
                 use_container_width=True,
             )
@@ -275,6 +254,6 @@ if not gdf_idse.empty:
 st.markdown("""
 ---
 **Geospatial Enterprise Web Mapping**  
-Developed with Streamlit, Folium & GeoPandas  
+Streamlit · GeoPandas · Folium  
 **Mahamadou Oumar CAMARA, PhD – Geomatics Engineering** © 2025
 """)
