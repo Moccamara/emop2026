@@ -67,7 +67,7 @@ if not st.session_state.auth_ok:
 # LOAD SE POLYGONS
 # =========================================================
 SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop/data/SE.geojson"
-POINTS_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop/data/concession.csv"
+#POINTS_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop/data/concession.csv"
 
 @st.cache_data(show_spinner=False)
 def load_se_data(url):
@@ -163,7 +163,7 @@ with st.sidebar:
 # MAP
 # =========================================================
 minx, miny, maxx, maxy = gdf_idse.total_bounds
-m = folium.Map(location=[(miny+maxy)/2, (minx+maxx)/2], zoom_start=17)
+m = folium.Map(location=[(miny+maxy)/2, (minx+maxx)/2], zoom_start=18)
 
 folium.TileLayer("OpenStreetMap").add_to(m)
 folium.TileLayer(
@@ -242,3 +242,4 @@ st.markdown("""
 Developed with Streamlit, Folium & GeoPandas  
 **Dr. Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
