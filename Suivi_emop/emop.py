@@ -62,7 +62,7 @@ if not st.session_state.auth_ok:
 # =========================================================
 # LOAD SE POLYGONS
 # =========================================================
-SE_URL = "https://raw.githubusercontent.com/Moccamara/web_mapping/master/data/SE.geojson"
+SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop/data/SE.geojson"
 
 @st.cache_data(show_spinner=False)
 def load_se_data(url):
@@ -81,7 +81,6 @@ def load_se_data(url):
         if col not in gdf.columns:
             gdf[col] = 0
     return gdf
-
 try:
     gdf = load_se_data(SE_URL)
 except Exception:
@@ -92,7 +91,7 @@ except Exception:
 # SIDEBAR
 # =========================================================
 with st.sidebar:
-    st.image("logo/logo_wgv.png", width=200)
+    st.image("Suivi_emop/logo/logo_wgv.png", width=200)
     st.markdown(f"**Logged in as:** {st.session_state.username} ({st.session_state.user_role})")
     if st.button("Logout"):
         logout()
@@ -300,3 +299,4 @@ st.markdown("""
 **Geospatial Enterprise Web Mapping** Developed with Streamlit, Folium & GeoPandas  
 **Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
