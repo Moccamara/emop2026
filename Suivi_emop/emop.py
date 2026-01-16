@@ -12,11 +12,16 @@ st.set_page_config(layout="wide", page_title="EMOP 2026 – Suivi")
 st.title("🌍 EMOP 2026 – Geospatial Monitoring Dashboard")
 
 # =========================================================
-# USERS AND ROLES
+# USERS AND REGIONS (Login → Password → Accessible Regions)
 # =========================================================
 USERS = {
-    "admin": {"password": "admin2025", "role": "Admin"},
-    "customer": {"password": "cust2025", "role": "Customer"},
+    "roland_emop": {"password": "emop2026rd", "role": "User", "regions": ["Kayes","Kita","Nioro","Sikasso","Koutiala"]},
+    "fanta_emop": {"password": "emop2026ft", "role": "User", "regions": ["Koulikoro","Bamako"]},
+    "boubacar_emop": {"password": "emop2026bk", "role": "User", "regions": ["Dioila","Nara"]},
+    "mohamed_emop": {"password": "emop2026mf", "role": "User", "regions": ["Bougouni","Segou","San","Mopti"]},
+    "kalilou_emop": {"password": "emop2026kb", "role": "User", "regions": ["Bandiagara","Douentza","Tombouctou"]},
+    "modibo_emop": {"password": "emop2026mb", "role": "User", "regions": ["Menaka","Kidal","Taoudeni","Gao"]},
+    "admin": {"password": "admin2025", "role": "Admin", "regions": []}  # Admin sees all
 }
 
 # =========================================================
@@ -26,6 +31,7 @@ if "auth_ok" not in st.session_state:
     st.session_state.auth_ok = False
     st.session_state.username = None
     st.session_state.user_role = None
+    st.session_state.accessible_regions = []
     st.session_state.points_gdf = None
     st.session_state.query_result = None
 
@@ -41,16 +47,17 @@ def logout():
 # =========================================================
 if not st.session_state.auth_ok:
     st.sidebar.header("🔐 Login")
-    username = st.sidebar.selectbox("User", list(USERS.keys()))
+    username = st.sidebar.text_input("Login")
     password = st.sidebar.text_input("Password", type="password")
     if st.sidebar.button("Login"):
-        if password == USERS[username]["password"]:
+        if username in USERS and password == USERS[username]["password"]:
             st.session_state.auth_ok = True
             st.session_state.username = username
             st.session_state.user_role = USERS[username]["role"]
+            st.session_state.accessible_regions = USERS[username]["regions"]
             st.rerun()
         else:
-            st.sidebar.error("❌ Incorrect password")
+            st.sidebar.error("❌ Invalid login or password")
     st.stop()
 
 # =========================================================
@@ -61,41 +68,22 @@ SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop
 @st.cache_data(show_spinner=False)
 def load_se_data(url):
     gdf = gpd.read_file(url)
-
     if gdf.crs is None:
         gdf = gdf.set_crs(epsg=4326)
     else:
         gdf = gdf.to_crs(epsg=4326)
-
-    # Normalize columns
     gdf.columns = [c.lower().strip() for c in gdf.columns]
-
-    # Keep original columns for filters
-    if "lregion" not in gdf.columns:
-        gdf["lregion"] = gdf.get("region", None)
-    if "lcerde" not in gdf.columns:
-        gdf["lcerde"] = gdf.get("cercle", None)
-    if "lcommune" not in gdf.columns:
-        gdf["lcommune"] = gdf.get("commune", None)
-
-    # Internal columns for processing
+    if "lregion" not in gdf.columns: gdf["lregion"] = gdf.get("region", None)
+    if "lcercle" not in gdf.columns: gdf["lcercle"] = gdf.get("cercle", None)
+    if "lcommune" not in gdf.columns: gdf["lcommune"] = gdf.get("commune", None)
     gdf["region"] = gdf["lregion"]
     gdf["cercle"] = gdf["lcercle"]
     gdf["commune"] = gdf["lcommune"]
-
-    # Remove duplicate columns
     gdf = gdf.loc[:, ~gdf.columns.duplicated()]
-
-    # Safety guarantees
-    for col in ["region", "cercle", "commune", "num_se"]:
-        if col not in gdf.columns:
-            gdf[col] = None
-    if "pop_se" not in gdf.columns:
-        gdf["pop_se"] = 0
-
-    # Remove invalid geometries
+    for col in ["region","cercle","commune","num_se"]:
+        if col not in gdf.columns: gdf[col] = None
+    if "pop_se" not in gdf.columns: gdf["pop_se"] = 0
     gdf = gdf[gdf.is_valid & ~gdf.is_empty]
-
     return gdf
 
 try:
@@ -117,8 +105,7 @@ with st.sidebar:
 # SAFE UNIQUE FUNCTION
 # =========================================================
 def unique_clean(series):
-    if isinstance(series, pd.DataFrame):
-        series = series.iloc[:, 0]
+    if isinstance(series, pd.DataFrame): series = series.iloc[:,0]
     return sorted(series.dropna().astype(str).str.strip().unique())
 
 # =========================================================
@@ -126,8 +113,13 @@ def unique_clean(series):
 # =========================================================
 st.sidebar.markdown("### 🗂️ Attribute Query")
 
-# REGION
-regions = unique_clean(gdf["lregion"])
+# REGION (restricted to accessible regions)
+all_regions = unique_clean(gdf["lregion"])
+if st.session_state.user_role == "Admin":
+    regions = all_regions
+else:
+    regions = [r for r in all_regions if r in st.session_state.accessible_regions]
+
 region = st.sidebar.selectbox("Region", regions)
 gdf_r = gdf[gdf["lregion"] == region]
 
@@ -162,34 +154,28 @@ if st.sidebar.button("Run Query"):
         st.sidebar.error("No point data available.")
 
 # =========================================================
-# CSV UPLOAD (ADMIN)
+# CSV UPLOAD (User/Admin)
 # =========================================================
-if st.session_state.user_role == "Admin":
-    st.sidebar.markdown("### 📥 Upload CSV Points")
-    csv_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
-    if csv_file is not None:
-        df = pd.read_csv(csv_file)
-        if {"Latitude", "Longitude"}.issubset(df.columns):
-            st.session_state.points_gdf = gpd.GeoDataFrame(
-                df,
-                geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
-                crs="EPSG:4326"
-            )
-            st.sidebar.success(f"✅ {len(df)} points loaded")
-        else:
-            st.sidebar.error("CSV must contain Latitude & Longitude")
+st.sidebar.markdown("### 📥 Upload CSV Points")
+csv_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+if csv_file is not None:
+    df = pd.read_csv(csv_file)
+    if {"Latitude","Longitude"}.issubset(df.columns):
+        st.session_state.points_gdf = gpd.GeoDataFrame(
+            df,
+            geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
+            crs="EPSG:4326"
+        )
+        st.sidebar.success(f"✅ {len(df)} points loaded")
+    else:
+        st.sidebar.error("CSV must contain Latitude & Longitude")
 
 # =========================================================
 # MAP (OSM + GOOGLE SATELLITE + Collapsible Legend)
 # =========================================================
 if not gdf_se.empty:
     minx, miny, maxx, maxy = gdf_se.total_bounds
-
-    m = folium.Map(
-        location=[(miny + maxy) / 2, (minx + maxx) / 2],
-        zoom_start=13,
-        tiles=None
-    )
+    m = folium.Map(location=[(miny+maxy)/2, (minx+maxx)/2], zoom_start=13, tiles=None)
 
     # Base maps
     folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(m)
@@ -206,10 +192,10 @@ if not gdf_se.empty:
     folium.GeoJson(
         gdf_se,
         tooltip=folium.GeoJsonTooltip(
-            fields=["num_se", "pop_se"],
-            aliases=["SE Number", "Population"]
+            fields=["num_se","pop_se"],
+            aliases=["SE Number","Population"]
         ),
-        style_function=lambda x: {"color": "blue", "weight": 2, "fillOpacity": 0.2},
+        style_function=lambda x: {"color":"blue","weight":2,"fillOpacity":0.2},
     ).add_to(se_group)
     se_group.add_to(m)
 
@@ -231,11 +217,11 @@ if not gdf_se.empty:
     MeasureControl().add_to(m)
     Draw(export=True).add_to(m)
 
-    # Collapsible legend
+    # Collapsible LayerControl
     folium.LayerControl(collapsed=True).add_to(m)
 
     # Fit bounds
-    m.fit_bounds([[miny, minx], [maxy, maxx]])
+    m.fit_bounds([[miny,minx],[maxy,maxx]])
 
     # Display map
     st_folium(m, height=550, use_container_width=True)
@@ -249,4 +235,3 @@ st.markdown("""
 Streamlit · GeoPandas · Folium  
 **Mahamadou Oumar CAMARA, PhD – Geomatics Engineering** © 2025
 """)
-
