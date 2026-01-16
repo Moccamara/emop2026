@@ -176,7 +176,6 @@ if st.session_state.user_role == "Admin":
                 crs="EPSG:4326"
             )
             st.sidebar.success(f"✅ {len(df)} points loaded")
-            st.experimental_rerun()  # Update the map immediately
         else:
             st.sidebar.error("CSV must contain Latitude & Longitude")
 
