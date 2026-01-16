@@ -91,7 +91,7 @@ except Exception:
 # SIDEBAR
 # =========================================================
 with st.sidebar:
-    st.image("Suivi_emop/logo/logo_wgv.png", width=200)
+    st.image("Suivi_emop/logo/emop.png", width=200)
     st.markdown(f"**Logged in as:** {st.session_state.username} ({st.session_state.user_role})")
     if st.button("Logout"):
         logout()
@@ -299,4 +299,5 @@ st.markdown("""
 **Geospatial Enterprise Web Mapping** Developed with Streamlit, Folium & GeoPandas  
 **Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
