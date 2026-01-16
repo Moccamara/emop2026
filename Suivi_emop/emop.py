@@ -67,28 +67,35 @@ def load_se_data(url):
     else:
         gdf = gdf.to_crs(epsg=4326)
 
-    # Normalize column names
+    # Normalize columns
     gdf.columns = [c.lower().strip() for c in gdf.columns]
 
-    # Internal renaming
-    gdf = gdf.rename(columns={
-        "lregion": "region",
-        "lcerde": "cercle",
-        "lcommune": "commune",
-        "num_se": "se_id"
-    })
+    # Keep original columns for filters
+    if "lregion" not in gdf.columns:
+        gdf["lregion"] = gdf.get("region", None)
+    if "lcerde" not in gdf.columns:
+        gdf["lcerde"] = gdf.get("cercle", None)
+    if "lcommune" not in gdf.columns:
+        gdf["lcommune"] = gdf.get("commune", None)
 
-    # Remove duplicates
+    # Internal columns for processing
+    gdf["region"] = gdf["lregion"]
+    gdf["cercle"] = gdf["lcerde"]
+    gdf["commune"] = gdf["lcommune"]
+
+    # Remove duplicate columns
     gdf = gdf.loc[:, ~gdf.columns.duplicated()]
 
     # Safety guarantees
-    for col in ["region", "cercle", "commune", "se_id"]:
+    for col in ["region", "cercle", "commune", "num_se"]:
         if col not in gdf.columns:
             gdf[col] = None
     if "pop_se" not in gdf.columns:
         gdf["pop_se"] = 0
 
+    # Remove invalid geometries
     gdf = gdf[gdf.is_valid & ~gdf.is_empty]
+
     return gdf
 
 try:
@@ -115,29 +122,29 @@ def unique_clean(series):
     return sorted(series.dropna().astype(str).str.strip().unique())
 
 # =========================================================
-# ATTRIBUTE FILTERS (use renamed columns)
+# ATTRIBUTE FILTERS (use original GeoJSON labels)
 # =========================================================
 st.sidebar.markdown("### 🗂️ Attribute Query")
 
 # REGION
-regions = unique_clean(gdf["region"])
+regions = unique_clean(gdf["lregion"])
 region = st.sidebar.selectbox("Region", regions)
-gdf_r = gdf[gdf["region"] == region]
+gdf_r = gdf[gdf["lregion"] == region]
 
 # CERCLE
-cercles = unique_clean(gdf_r["cercle"])
+cercles = unique_clean(gdf_r["lcerde"])
 cercle = st.sidebar.selectbox("Cercle", cercles)
-gdf_c = gdf_r[gdf_r["cercle"] == cercle]
+gdf_c = gdf_r[gdf_r["lcerde"] == cercle]
 
 # COMMUNE
-communes = unique_clean(gdf_c["commune"])
+communes = unique_clean(gdf_c["lcommune"])
 commune = st.sidebar.selectbox("Commune", communes)
-gdf_commune = gdf_c[gdf_c["commune"] == commune]
+gdf_commune = gdf_c[gdf_c["lcommune"] == commune]
 
 # SE (num_se)
-se_list = ["No filter"] + unique_clean(gdf_commune["se_id"])
+se_list = ["No filter"] + unique_clean(gdf_commune["num_se"])
 se_selected = st.sidebar.selectbox("SE (num_se)", se_list)
-gdf_se = gdf_commune if se_selected == "No filter" else gdf_commune[gdf_commune["se_id"] == se_selected]
+gdf_se = gdf_commune if se_selected == "No filter" else gdf_commune[gdf_commune["num_se"] == se_selected]
 
 # =========================================================
 # SPATIAL QUERY
@@ -199,7 +206,7 @@ if not gdf_se.empty:
         gdf_se,
         name="SE",
         tooltip=folium.GeoJsonTooltip(
-            fields=["se_id", "pop_se"],
+            fields=["num_se", "pop_se"],
             aliases=["SE Number", "Population"]
         ),
         style_function=lambda x: {
