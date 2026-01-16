@@ -56,7 +56,7 @@ if not st.session_state.auth_ok:
     st.stop()
 
 # =========================================================
-# LOAD SE POLYGONS (REAL SCHEMA)
+# LOAD EMOP SE POLYGONS
 # =========================================================
 SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop/data/emop2026.geojson"
 
@@ -64,22 +64,25 @@ SE_URL = "https://raw.githubusercontent.com/Moccamara/emop2026/master/Suivi_emop
 def load_se_data(url):
     gdf = gpd.read_file(url)
 
-    # CRS
+    # CRS handling
     if gdf.crs is None:
         gdf = gdf.set_crs(epsg=4326)
     else:
         gdf = gdf.to_crs(epsg=4326)
 
-    # Normalize columns
+    # Normalize column names
     gdf.columns = [c.lower().strip() for c in gdf.columns]
 
-    # Explicit renaming based on your REAL table
+    # Explicit renaming
     gdf = gdf.rename(columns={
         "lregion": "region",
         "lcerde": "cercle",
         "lcommune": "commune",
         "num_se": "se_id"
     })
+
+    # 🔴 FIX: remove duplicated column names (ROOT CAUSE)
+    gdf = gdf.loc[:, ~gdf.columns.duplicated()]
 
     # Safety guarantees
     for col in ["region", "cercle", "commune", "se_id"]:
@@ -110,17 +113,25 @@ with st.sidebar:
         logout()
 
 # =========================================================
-# ATTRIBUTE FILTERS (MATCH REAL DATA)
+# SAFE UNIQUE CLEAN FUNCTION
 # =========================================================
-st.sidebar.markdown("### 🗂️ Attribute Query")
-
 def unique_clean(series):
+    # If duplicate columns exist, keep the first
+    if isinstance(series, pd.DataFrame):
+        series = series.iloc[:, 0]
+
     return sorted(
         series
-        .apply(lambda x: str(x).strip() if pd.notna(x) else None)
         .dropna()
+        .astype(str)
+        .str.strip()
         .unique()
     )
+
+# =========================================================
+# ATTRIBUTE FILTERS
+# =========================================================
+st.sidebar.markdown("### 🗂️ Attribute Query")
 
 # REGION
 regions = unique_clean(gdf["region"])
@@ -137,7 +148,7 @@ communes = unique_clean(gdf_c["commune"])
 commune = st.sidebar.selectbox("Commune", communes)
 gdf_commune = gdf_c[gdf_c["commune"] == commune]
 
-# SE (num_se)
+# SE
 se_list = ["No filter"] + unique_clean(gdf_commune["se_id"])
 se_selected = st.sidebar.selectbox("SE (num_se)", se_list)
 
@@ -151,7 +162,9 @@ gdf_se = (
 # SPATIAL QUERY
 # =========================================================
 st.sidebar.markdown("### 🧭 Spatial Query")
-query_type = st.sidebar.selectbox("Select query type", ["Intersects", "Within", "Contains"])
+query_type = st.sidebar.selectbox(
+    "Select query type", ["Intersects", "Within", "Contains"]
+)
 
 if st.sidebar.button("Run Query"):
     if st.session_state.points_gdf is not None and not gdf_se.empty:
@@ -172,6 +185,7 @@ if st.session_state.user_role == "Admin":
 
     if csv_file is not None:
         df = pd.read_csv(csv_file)
+
         if {"Latitude", "Longitude"}.issubset(df.columns):
             gdf_pts = gpd.GeoDataFrame(
                 df,
@@ -207,7 +221,12 @@ if not gdf_se.empty:
         },
     ).add_to(m)
 
-    points_to_show = st.session_state.query_result or st.session_state.points_gdf
+    points_to_show = (
+        st.session_state.query_result
+        if st.session_state.query_result is not None
+        else st.session_state.points_gdf
+    )
+
     if points_to_show is not None and not points_to_show.empty:
         for _, r in points_to_show.iterrows():
             folium.CircleMarker(
