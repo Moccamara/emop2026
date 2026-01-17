@@ -110,33 +110,34 @@ def unique_clean(series):
 # =========================================================
 # ATTRIBUTE FILTERS
 # =========================================================
+# =========================================================
+# ATTRIBUTE FILTERS (EMOP OFFICIAL FIELDS)
+# =========================================================
 st.sidebar.markdown("### 🗂️ Attribute Query")
-
-# REGION (restricted to accessible regions)
-all_regions = unique_clean(gdf["LREG_NEW"])
+# REGION (label)
+all_regions = unique_clean(gdf["lreg_new"])
 if st.session_state.user_role == "Admin":
     regions = all_regions
 else:
     regions = [r for r in all_regions if r in st.session_state.accessible_regions]
-
 region = st.sidebar.selectbox("Region", regions)
-gdf_r = gdf[gdf["LREG_NEW"] == region]
-
+gdf_r = gdf[gdf["lreg_new"] == region]
 # CERCLE (label)
-cercles = unique_clean(gdf_r["LCER_NEW"])
+cercles = unique_clean(gdf_r["lcer_new"])
 cercle = st.sidebar.selectbox("Cercle", cercles)
-gdf_c = gdf_r[gdf_r["LCER_NEW"] == cercle]
-
-# COMMUNE
-communes = unique_clean(gdf_c["LCOM_NEW"])
+gdf_c = gdf_r[gdf_r["lcer_new"] == cercle]
+# COMMUNE (label)
+communes = unique_clean(gdf_c["lcom_new"])
 commune = st.sidebar.selectbox("Commune", communes)
-gdf_commune = gdf_c[gdf_c["LCOM_NEW"] == commune]
-
-# SE (num_se)
+gdf_commune = gdf_c[gdf_c["lcom_new"] == commune]
+# SE
 se_list = ["No filter"] + unique_clean(gdf_commune["num_se"])
 se_selected = st.sidebar.selectbox("SE (num_se)", se_list)
-gdf_se = gdf_commune if se_selected == "No filter" else gdf_commune[gdf_commune["num_se"] == se_selected]
-
+gdf_se = (
+    gdf_commune
+    if se_selected == "No filter"
+    else gdf_commune[gdf_commune["num_se"] == se_selected]
+)
 # =========================================================
 # SPATIAL QUERY
 # =========================================================
@@ -234,5 +235,4 @@ st.markdown("""
 Streamlit · GeoPandas · Folium  
 **Mahamadou Oumar CAMARA, PhD – Geomatics Engineering** © 2025
 """)
-
 
