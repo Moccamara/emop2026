@@ -16,7 +16,7 @@ st.title("🌍 EMOP 2026 – Geospatial Monitoring Dashboard")
 # =========================================================
 USERS = {
     "roland_emop": {"password": "emop2026rd", "role": "User", "regions": ["Kayes","Kita","Nioro","Sikasso","Koutiala"]},
-    "fanta_emop": {"password": "emop2026ft", "role": "User", "regions": ["Koulikoro","District de Bamako"]},
+    "fanta_emop": {"password": "emop2026ft", "role": "User", "regions": ["Koulikoro","Bamako"]},
     "boubacar_emop": {"password": "emop2026bk", "role": "User", "regions": ["Dioila","Nara"]},
     "mohamed_emop": {"password": "emop2026mf", "role": "User", "regions": ["Bougouni","Segou","San","Mopti"]},
     "kalilou_emop": {"password": "emop2026kb", "role": "User", "regions": ["Bandiagara","Douentza","Tombouctou"]},
@@ -234,5 +234,6 @@ st.markdown("""
 **EMOP 2026 – Suivi Géospatial**   
 **Dr.Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
 
