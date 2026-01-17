@@ -156,36 +156,19 @@ if st.sidebar.button("Run Query"):
 # =========================================================
 # CSV LOAD FROM GOOGLE DRIVE
 # =========================================================
-st.sidebar.markdown("### ☁️ Load CSV from Google Drive")
-
-gdrive_url = st.sidebar.text_input(
-    "Paste Google Drive CSV link",
-    placeholder="https://drive.google.com/..."
-)
-
-if st.sidebar.button("Load from Google Drive"):
-    try:
-        if "drive.google.com" in gdrive_url:
-            file_id = gdrive_url.split("/d/")[1].split("/")[0]
-            download_url = f"https://drive.google.com/uc?id={file_id}"
-
-            df = pd.read_csv(download_url)
-
-            if {"Latitude", "Longitude"}.issubset(df.columns):
-                st.session_state.points_gdf = gpd.GeoDataFrame(
-                    df,
-                    geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
-                    crs="EPSG:4326"
-                )
-                st.sidebar.success(f"✅ {len(df)} points loaded from Google Drive")
-            else:
-                st.sidebar.error("CSV must contain Latitude & Longitude columns")
-        else:
-            st.sidebar.error("Invalid Google Drive link")
-
-    except Exception as e:
-        st.sidebar.error(f"❌ Failed to load CSV: {e}")
-
+st.sidebar.markdown("### 📥 Upload CSV Points")
+csv_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+if csv_file is not None:
+    df = pd.read_csv(csv_file)
+    if {"Latitude","Longitude"}.issubset(df.columns):
+        st.session_state.points_gdf = gpd.GeoDataFrame(
+            df,
+            geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
+            crs="EPSG:4326"
+        )
+        st.sidebar.success(f"✅ {len(df)} points loaded")
+    else:
+        st.sidebar.error("CSV must contain Latitude & Longitude")
 
 # =========================================================
 # MAP (OSM + GOOGLE SATELLITE + Collapsible Legend)
@@ -258,6 +241,7 @@ Auterurs:
 
 dtate: **© 2026**
 """)
+
 
 
 
