@@ -21,7 +21,7 @@ USERS = {
     "mohamed_emop": {"password": "emop2026mf", "role": "User", "regions": ["Bougouni","Segou","San","Mopti"]},
     "kalilou_emop": {"password": "emop2026kb", "role": "User", "regions": ["Bandiagara","Douentza","Tombouctou"]},
     "modibo_emop": {"password": "emop2026mb", "role": "User", "regions": ["Menaka","Kidal","Taoudeni","Gao"]},
-    "admin": {"password": "admin2025", "role": "Admin", "regions": []}  # Admin sees all
+    "admin": {"password": "admin2026", "role": "Admin", "regions": []}  # Admin sees all
 }
 
 # =========================================================
@@ -236,6 +236,7 @@ st.markdown("""
 **Dr.Mahamadou CAMARA, PhD – Geomatics Engineering** 
 © 2026
 """)
+
 
 
 
