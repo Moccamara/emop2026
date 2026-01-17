@@ -231,8 +231,8 @@ if not gdf_se.empty:
 # =========================================================
 st.markdown("""
 ---
-**EMOP 2026 – Suivi Géospatial**  
-Streamlit · GeoPandas · Folium  
-**Mahamadou Oumar CAMARA, PhD – Geomatics Engineering** © 2025
+**EMOP 2026 – Suivi Géospatial**   
+**Dr.Mahamadou CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
