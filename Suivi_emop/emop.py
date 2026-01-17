@@ -231,11 +231,15 @@ if not gdf_se.empty:
 # =========================================================
 st.markdown("""
 ---
-**EMOP 2026 – Suivi Géospatial**   Auterurs:
-**Abdoul Karim DIAWARA, Chef de Division Cartographie et SIG**   et
-**Dr.Mahamadou CAMARA, PhD – Geomatics Engineering**   dtate:
-© 2026
+**EMOP 2026 – Suivi Géospatial**   
+
+Auterurs:
+**Abdoul Karim DIAWARA**, Chef de Division Cartographie et SIG   et
+**Dr.Mahamadou CAMARA**, PhD – Geomatics Engineering   
+
+dtate: **© 2026**
 """)
+
 
 
 
