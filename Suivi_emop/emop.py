@@ -85,7 +85,6 @@ def load_se_data(url):
     if "pop_se" not in gdf.columns: gdf["pop_se"] = 0
     gdf = gdf[gdf.is_valid & ~gdf.is_empty]
     return gdf
-
 try:
     gdf = load_se_data(SE_URL)
 except Exception as e:
@@ -114,24 +113,24 @@ def unique_clean(series):
 st.sidebar.markdown("### 🗂️ Attribute Query")
 
 # REGION (restricted to accessible regions)
-all_regions = unique_clean(gdf["lregion"])
+all_regions = unique_clean(gdf["LREG_NEW"])
 if st.session_state.user_role == "Admin":
     regions = all_regions
 else:
     regions = [r for r in all_regions if r in st.session_state.accessible_regions]
 
 region = st.sidebar.selectbox("Region", regions)
-gdf_r = gdf[gdf["lregion"] == region]
+gdf_r = gdf[gdf["LREG_NEW"] == region]
 
 # CERCLE (label)
-cercles = unique_clean(gdf_r["lcercle"])
+cercles = unique_clean(gdf_r["LCER_NEW"])
 cercle = st.sidebar.selectbox("Cercle", cercles)
-gdf_c = gdf_r[gdf_r["lcercle"] == cercle]
+gdf_c = gdf_r[gdf_r["LCER_NEW"] == cercle]
 
 # COMMUNE
-communes = unique_clean(gdf_c["lcommune"])
+communes = unique_clean(gdf_c["LCOM_NEW"])
 commune = st.sidebar.selectbox("Commune", communes)
-gdf_commune = gdf_c[gdf_c["lcommune"] == commune]
+gdf_commune = gdf_c[gdf_c["LCOM_NEW"] == commune]
 
 # SE (num_se)
 se_list = ["No filter"] + unique_clean(gdf_commune["num_se"])
@@ -235,4 +234,5 @@ st.markdown("""
 Streamlit · GeoPandas · Folium  
 **Mahamadou Oumar CAMARA, PhD – Geomatics Engineering** © 2025
 """)
+
 
