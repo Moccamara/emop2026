@@ -155,35 +155,21 @@ if st.sidebar.button("Run Query"):
         st.sidebar.error("No point data available.")
 
 # =========================================================
-# CSV LOAD FROM GOOGLE DRIVE
+# CSV UPLOAD (User/Admin)
 # =========================================================
-folder_url = gdrive_url
-output_dir = "gdrive_data"
-
-if st.sidebar.button("Load from Google Drive Folder"):
-    try:
-        gdown.download_folder(folder_url, output=output_dir, quiet=False)
-
-        csv_files = [f for f in os.listdir(output_dir) if f.endswith(".csv")]
-
-        if not csv_files:
-            st.sidebar.error("❌ No CSV found in folder")
-        else:
-            csv_path = os.path.join(output_dir, csv_files[0])
-            df = pd.read_csv(csv_path)
-
-            if {"Latitude", "Longitude"}.issubset(df.columns):
-                st.session_state.points_gdf = gpd.GeoDataFrame(
-                    df,
-                    geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
-                    crs="EPSG:4326"
-                )
-                st.sidebar.success(f"✅ {len(df)} points loaded from folder")
-            else:
-                st.sidebar.error("❌ CSV must contain Latitude & Longitude columns")
-
-    except Exception as e:
-        st.sidebar.error(f"❌ Failed to load folder: {e}")
+st.sidebar.markdown("### 📥 Upload CSV Points")
+csv_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+if csv_file is not None:
+    df = pd.read_csv(csv_file)
+    if {"Latitude","Longitude"}.issubset(df.columns):
+        st.session_state.points_gdf = gpd.GeoDataFrame(
+            df,
+            geometry=gpd.points_from_xy(df["Longitude"], df["Latitude"]),
+            crs="EPSG:4326"
+        )
+        st.sidebar.success(f"✅ {len(df)} points loaded")
+    else:
+        st.sidebar.error("CSV must contain Latitude & Longitude")
 
 # =========================================================
 # MAP (OSM + GOOGLE SATELLITE + Collapsible Legend)
@@ -256,6 +242,7 @@ Auterurs:
 
 dtate: **© 2026**
 """)
+
 
 
 
