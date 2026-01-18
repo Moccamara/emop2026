@@ -10,3 +10,4 @@ matplotlib
 pyproj
 fiona
 rtree
+gdown
